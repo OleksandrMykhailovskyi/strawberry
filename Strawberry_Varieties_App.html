@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroAnalytica: Аналіз Сортів Полуниці</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&display=swap');
+        
+        body {
+            font-family: 'Manrope', sans-serif;
+            background-color: #FAFAF9; /* Stone-50 */
+            color: #1C1917; /* Stone-900 */
+        }
+
+        /* Chart Container Styling Rules */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 100%;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+        }
+
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+
+        .chart-container-sm {
+            position: relative;
+            width: 100%;
+            height: 250px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #E7E5E4;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #A8A29E;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #78716C;
+        }
+
+        /* Tab Animation */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .nav-btn.active {
+            background-color: #BE123C; /* Rose-700 */
+            color: white;
+            font-weight: 700;
+        }
+    </style>
+    <!-- Chosen Palette: Warm Natural (Stone, Rose, Emerald) -->
+    <!-- Application Structure Plan:
+         Designed as a Tabbed Single Page Application (SPA) to reduce cognitive load and facilitate distinct user tasks.
+         1. Dashboard: High-level KPIs and 'Best For' recommendations to give immediate value.
+         2. Analytics: Interactive charts (Scatter & Bar) with filters (Seasonality) to allow users to explore correlations between yield and taste.
+         3. Season Planner: A functional tool where users select varieties to visualize harvest continuity, addressing the 'conveyor' business need.
+         4. Variety Catalog: Detailed cards for specific data lookup.
+         Interaction: Javascript handles tab switching, chart filtering, and dynamic timeline rendering based on user selection.
+    -->
+    <!-- Visualization & Content Choices:
+         1. Yield vs Taste: Scatter Plot. Goal: Compare/Relationships. Shows the tradeoff between quantity and quality.
+         2. Berry Weight: Bar Chart. Goal: Compare. Visualizes size differences.
+         3. Harvest Timeline: Custom HTML/JS Grid. Goal: Change/Planning. Users interact to see overlaps. NO SVG used.
+         4. Variety Detail: Radar Chart. Goal: Inform/Profile. Shows multi-axis attributes (sweetness, firmness, etc.) for a specific selected variety.
+         Libraries: Chart.js for graphs, Tailwind for layout/timeline.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="bg-stone-50 min-h-screen flex flex-col">
+
+    <!-- Navigation Bar -->
+    <nav class="bg-white shadow-sm border-b border-stone-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 flex items-center gap-2">
+                        <span class="text-3xl">🍓</span>
+                        <span class="font-extrabold text-xl tracking-tight text-rose-700">Agro<span class="text-stone-800">Analytica</span></span>
+                    </div>
+                </div>
+                <div class="hidden md:flex space-x-1 items-center">
+                    <button onclick="switchTab('dashboard')" class="nav-btn active px-4 py-2 rounded-md text-sm font-medium text-stone-600 hover:bg-rose-50 hover:text-rose-700 transition-colors">Дашборд</button>
+                    <button onclick="switchTab('analytics')" class="nav-btn px-4 py-2 rounded-md text-sm font-medium text-stone-600 hover:bg-rose-50 hover:text-rose-700 transition-colors">Аналітика</button>
+                    <button onclick="switchTab('planner')" class="nav-btn px-4 py-2 rounded-md text-sm font-medium text-stone-600 hover:bg-rose-50 hover:text-rose-700 transition-colors">Планувальник</button>
+                    <button onclick="switchTab('catalog')" class="nav-btn px-4 py-2 rounded-md text-sm font-medium text-stone-600 hover:bg-rose-50 hover:text-rose-700 transition-colors">Каталог</button>
+                </div>
+                <!-- Mobile menu button -->
+                <div class="flex items-center md:hidden">
+                    <button onclick="toggleMobileMenu()" class="text-stone-500 hover:text-stone-700 focus:outline-none p-2">
+                        <span class="text-2xl">☰</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-stone-200 pb-2">
+            <button onclick="switchTab('dashboard')" class="block w-full text-left px-4 py-3 text-base font-medium text-stone-700 hover:bg-stone-50 border-l-4 border-transparent hover:border-rose-600">Дашборд</button>
+            <button onclick="switchTab('analytics')" class="block w-full text-left px-4 py-3 text-base font-medium text-stone-700 hover:bg-stone-50 border-l-4 border-transparent hover:border-rose-600">Аналітика</button>
+            <button onclick="switchTab('planner')" class="block w-full text-left px-4 py-3 text-base font-medium text-stone-700 hover:bg-stone-50 border-l-4 border-transparent hover:border-rose-600">Планувальник</button>
+            <button onclick="switchTab('catalog')" class="block w-full text-left px-4 py-3 text-base font-medium text-stone-700 hover:bg-stone-50 border-l-4 border-transparent hover:border-rose-600">Каталог</button>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+        <!-- TAB 1: DASHBOARD -->
+        <div id="dashboard" class="tab-content active">
+            <div class="mb-8">
+                <h1 class="text-3xl font-bold text-stone-900">Огляд Ефективності</h1>
+                <p class="mt-2 text-stone-600 max-w-2xl">
+                    Короткий огляд ключових показників елітних сортів полуниці (Брілла, Альба, Мурано та ін.). 
+                    Використовуйте цей розділ для швидкого прийняття рішень на основі продуктивності та смакових якостей.
+                </p>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <!-- KPI 1 -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wider text-stone-400">Лідер Врожайності</div>
+                        <div class="text-3xl font-extrabold text-stone-900 mt-2">Кабрілло</div>
+                        <div class="text-sm text-green-600 mt-1 font-medium">до 3.0 кг/кущ</div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-stone-100">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Ремонтантний (НСД)
+                        </span>
+                    </div>
+                </div>
+                <!-- KPI 2 -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wider text-stone-400">Еталон Смаку</div>
+                        <div class="text-3xl font-extrabold text-stone-900 mt-2">Мальвіна</div>
+                        <div class="text-sm text-rose-600 mt-1 font-medium">Brix 9.0/10</div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-stone-100">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">
+                            Пізній (КСД)
+                        </span>
+                    </div>
+                </div>
+                <!-- KPI 3 -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-100 p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                        <div class="text-xs font-semibold uppercase tracking-wider text-stone-400">Баланс Якості</div>
+                        <div class="text-3xl font-extrabold text-stone-900 mt-2">Мурано</div>
+                        <div class="text-sm text-blue-600 mt-1 font-medium">Високий Brix + Врожай</div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-stone-100">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            Топ продажів
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Mini Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                    <h3 class="text-lg font-bold text-stone-800 mb-4">Розподіл за Типом Плодоношення</h3>
+                    <div class="flex items-center">
+                        <div class="w-1/2 chart-container-sm">
+                            <canvas id="typeDistributionChart"></canvas>
+                        </div>
+                        <div class="w-1/2 pl-6 space-y-4">
+                            <div>
+                                <h4 class="font-bold text-rose-700">КСД (Сезонні)</h4>
+                                <p class="text-xs text-stone-500">Альба, Румба, Брілла, Гранд Роса, Мальвіна</p>
+                                <p class="text-sm mt-1">Одноразовий, потужний врожай.</p>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-green-700">НСД (Ремонтантні)</h4>
+                                <p class="text-xs text-stone-500">Сан Андреас, Мурано, Кабрілло</p>
+                                <p class="text-sm mt-1">Постійне плодоношення до морозів.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-rose-50 p-6 rounded-xl border border-rose-100 flex flex-col justify-center items-center text-center">
+                    <h3 class="text-xl font-bold text-rose-900 mb-2">Потрібна допомога з вибором?</h3>
+                    <p class="text-stone-700 mb-6 max-w-sm">Скористайтеся нашим інтерактивним планувальником, щоб створити ідеальний ягідний конвеєр.</p>
+                    <button onclick="switchTab('planner')" class="bg-rose-600 text-white px-6 py-3 rounded-lg font-bold shadow hover:bg-rose-700 transition transform hover:-translate-y-1">
+                        Відкрити Планувальник
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: ANALYTICS -->
+        <div id="analytics" class="tab-content">
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-stone-900">Глибока Аналітика</h2>
+                    <p class="text-stone-600 mt-1">Порівняння агротехнічних характеристик для професійного підбору.</p>
+                </div>
+                
+                <!-- Filter Controls -->
+                <div class="bg-white p-1.5 rounded-lg border border-stone-200 shadow-sm inline-flex">
+                    <button onclick="updateCharts('all')" id="filter-all" class="filter-btn active px-4 py-1.5 rounded-md text-sm font-medium transition-colors bg-stone-100 text-stone-900">Всі</button>
+                    <button onclick="updateCharts('ksd')" id="filter-ksd" class="filter-btn px-4 py-1.5 rounded-md text-sm font-medium text-stone-500 hover:bg-stone-50 transition-colors">КСД (Сезонні)</button>
+                    <button onclick="updateCharts('nsd')" id="filter-nsd" class="filter-btn px-4 py-1.5 rounded-md text-sm font-medium text-stone-500 hover:bg-stone-50 transition-colors">НСД (Ремонтантні)</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Scatter Plot -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100 col-span-1 lg:col-span-2">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-stone-800">Матриця Цінності: Врожайність vs Смак</h3>
+                        <span class="text-xs bg-stone-100 text-stone-500 px-2 py-1 rounded">Вісь X: Грам/кущ | Вісь Y: Brix (1-10)</span>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="yieldTasteChart"></canvas>
+                    </div>
+                    <p class="mt-4 text-sm text-stone-500">
+                        *Сорти у верхньому правому куті (наприклад, Мурано) вважаються "Золотим стандартом", поєднуючи високу врожайність з відмінним смаком.
+                    </p>
+                </div>
+
+                <!-- Weight Bar Chart -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                    <h3 class="text-lg font-bold text-stone-800 mb-4">Середня Вага Ягоди (г)</h3>
+                    <div class="chart-container">
+                        <canvas id="weightChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Hardness Comparison -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                    <h3 class="text-lg font-bold text-stone-800 mb-4">Транспортабельність (Твердість)</h3>
+                    <div class="chart-container">
+                        <canvas id="hardnessChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: SEASON PLANNER -->
+        <div id="planner" class="tab-content">
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-stone-900">Планувальник Сезону</h2>
+                <p class="text-stone-600 mt-1">
+                    Оберіть сорти, які ви плануєте висадити, щоб побачити покриття сезону збору врожаю.
+                    Мета: створити безперервний "конвеєр" ягоди.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Controls -->
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-100 h-fit">
+                    <h3 class="font-bold text-stone-800 mb-4 border-b border-stone-100 pb-2">Вибір Сортів</h3>
+                    <div id="variety-toggles" class="space-y-3">
+                        <!-- Toggles injected by JS -->
+                    </div>
+                    <div class="mt-6 pt-4 border-t border-stone-100">
+                        <button onclick="resetPlanner()" class="w-full text-sm text-stone-500 hover:text-stone-800 underline">Скинути вибір</button>
+                    </div>
+                </div>
+
+                <!-- Visualization -->
+                <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-stone-100">
+                    <h3 class="font-bold text-stone-800 mb-6">Календар Збору</h3>
+                    
+                    <!-- Month Header -->
+                    <div class="grid grid-cols-6 gap-1 mb-4 text-xs font-bold text-stone-400 uppercase text-center border-b border-stone-100 pb-2">
+                        <div>Травень</div>
+                        <div>Червень</div>
+                        <div>Липень</div>
+                        <div>Серпень</div>
+                        <div>Вересень</div>
+                        <div>Жовтень</div>
+                    </div>
+
+                    <!-- Timeline Container -->
+                    <div id="timeline-container" class="space-y-4 min-h-[300px]">
+                        <!-- Bars injected by JS -->
+                        <div class="text-center text-stone-400 italic mt-20">Оберіть сорти зліва, щоб побачити графік</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: CATALOG -->
+        <div id="catalog" class="tab-content">
+            <h2 class="text-2xl font-bold text-stone-900 mb-6">Каталог Сортів</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="catalog-grid">
+                <!-- Cards injected by JS -->
+            </div>
+
+            <!-- Detail Modal (Simulated inline for SPA simplicity) -->
+            <div id="detail-view" class="hidden fixed inset-0 bg-stone-900 bg-opacity-50 z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                    <div class="p-6 md:p-8">
+                        <div class="flex justify-between items-start mb-6">
+                            <div>
+                                <h3 id="modal-title" class="text-3xl font-bold text-stone-900">Title</h3>
+                                <span id="modal-subtitle" class="inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium bg-stone-100 text-stone-600">Subtitle</span>
+                            </div>
+                            <button onclick="closeModal()" class="text-stone-400 hover:text-stone-600">
+                                <span class="text-3xl">&times;</span>
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div>
+                                <p id="modal-desc" class="text-stone-600 leading-relaxed mb-6">Description</p>
+                                <div class="space-y-3">
+                                    <div class="flex justify-between border-b border-stone-100 pb-2">
+                                        <span class="text-stone-500">Країна</span>
+                                        <span id="modal-origin" class="font-medium">Italy</span>
+                                    </div>
+                                    <div class="flex justify-between border-b border-stone-100 pb-2">
+                                        <span class="text-stone-500">Вага ягоди</span>
+                                        <span id="modal-weight" class="font-medium">30g</span>
+                                    </div>
+                                    <div class="flex justify-between border-b border-stone-100 pb-2">
+                                        <span class="text-stone-500">Врожайність</span>
+                                        <span id="modal-yield" class="font-medium">1000g</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-stone-50 rounded-xl p-4 flex items-center justify-center">
+                                <div class="chart-container-sm w-full">
+                                    <canvas id="modalChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-stone-200 mt-auto">
+        <div class="max-w-7xl mx-auto py-8 px-4 text-center">
+            <p class="text-stone-400 text-sm">&copy; 2024 AgroAnalytica. Інструмент прийняття рішень.</p>
+        </div>
+    </footer>
+
+    <script>
+        // --- DATA STORE ---
+        const varieties = [
+            { 
+                id: 'brilla', name: 'Брілла', type: 'ksd', origin: 'Італія', 
+                weight: 30, yield: 900, brix: 7.0, firmness: 8, resistance: 9,
+                seasonStart: 5, seasonEnd: 15, // May 5th to May 15th (relative simplified scale 0-180 days from May 1)
+                seasonDesc: 'Дуже рання',
+                desc: 'Надзвичайно витривала та стабільна. Ідеальна для раннього запуску ринку. Ягода велика, смак гармонійний.',
+                color: '#EF4444' 
+            },
+            { 
+                id: 'alba', name: 'Альба', type: 'ksd', origin: 'Італія', 
+                weight: 25, yield: 1000, brix: 6.0, firmness: 10, resistance: 8,
+                seasonStart: 10, seasonEnd: 35, 
+                seasonDesc: 'Рання',
+                desc: 'Промисловий стандарт. Найкраща транспортабельність. Кислинка відчутна, але вигляд бездоганний.',
+                color: '#DC2626'
+            },
+            { 
+                id: 'rumba', name: 'Румба', type: 'ksd', origin: 'Нідерланди', 
+                weight: 22, yield: 750, brix: 8.0, firmness: 7, resistance: 9,
+                seasonStart: 15, seasonEnd: 40, 
+                seasonDesc: 'Рання',
+                desc: 'Заміна Хонею. Темна, блискуча ягода. Висока стійкість до кореневих гнилей. Чудовий смак.',
+                color: '#B91C1C'
+            },
+            { 
+                id: 'grand_rosa', name: 'Гранд Роса', type: 'ksd', origin: 'США', 
+                weight: 35, yield: 800, brix: 7.5, firmness: 9, resistance: 7,
+                seasonStart: 30, seasonEnd: 55, 
+                seasonDesc: 'Середня',
+                desc: 'Преміальний калібр. Величезні ягоди світло-червоного кольору. Потребує захисту від борошнистої роси.',
+                color: '#F43F5E'
+            },
+            { 
+                id: 'malwina', name: 'Мальвіна', type: 'ksd', origin: 'Німеччина', 
+                weight: 28, yield: 600, brix: 9.0, firmness: 6, resistance: 8,
+                seasonStart: 60, seasonEnd: 85, 
+                seasonDesc: 'Дуже пізня',
+                desc: 'Королева пізнього сезону. Смак "з дитинства". Темно-вишнева м\'якоть. Дуже потужні кущі.',
+                color: '#881337'
+            },
+            { 
+                id: 'san_andreas', name: 'Сан Андреас', type: 'nsd', origin: 'США', 
+                weight: 28, yield: 1100, brix: 7.0, firmness: 9, resistance: 8,
+                seasonStart: 25, seasonEnd: 150, 
+                seasonDesc: 'Ремонтантна',
+                desc: 'Надійна "робоча конячка" серед нейтралів. Схожий на Альбіон, але смачніший і врожайніший.',
+                color: '#16A34A'
+            },
+            { 
+                id: 'murano', name: 'Мурано', type: 'nsd', origin: 'Італія', 
+                weight: 24, yield: 950, brix: 8.8, firmness: 8, resistance: 7,
+                seasonStart: 30, seasonEnd: 150, 
+                seasonDesc: 'Ремонтантна',
+                desc: 'Лідер за смаковими якостями серед ремонтрантних. Високий Brix протягом усього сезону.',
+                color: '#15803D'
+            },
+            { 
+                id: 'cabrillo', name: 'Кабрілло', type: 'nsd', origin: 'США', 
+                weight: 32, yield: 1500, brix: 6.5, firmness: 10, resistance: 9,
+                seasonStart: 25, seasonEnd: 150, 
+                seasonDesc: 'Ремонтантна',
+                desc: 'Абсолютний рекордсмен врожайності. Ягода "бронебійна", але смак простий. Для супермаркетів.',
+                color: '#166534'
+            }
+        ];
+
+        // --- APP STATE ---
+        let currentTab = 'dashboard';
+        let activeFilter = 'all';
+        let plannerSelection = ['brilla', 'murano']; // Default selection
+
+        // --- UI LOGIC ---
+        function switchTab(tabId) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            // Deactivate nav buttons
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('active', 'bg-rose-700', 'text-white');
+                el.classList.add('text-stone-600');
+            });
+
+            // Show selected tab
+            document.getElementById(tabId).classList.add('active');
+            
+            // Highlight nav button (desktop)
+            const activeBtn = document.querySelector(`button[onclick="switchTab('${tabId}')"]`);
+            if(activeBtn) {
+                activeBtn.classList.add('active');
+                activeBtn.classList.remove('text-stone-600');
+            }
+
+            // Close mobile menu if open
+            const mobileMenu = document.getElementById('mobile-menu');
+            if (!mobileMenu.classList.contains('hidden')) {
+                toggleMobileMenu();
+            }
+
+            // Trigger chart resize/update if needed
+            if (tabId === 'analytics') {
+                updateCharts(activeFilter);
+            }
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        }
+
+        // --- CHART GENERATION ---
+        
+        // Label wrapping helper
+        function wrapLabel(label) {
+            const max = 15;
+            if (label.length <= max) return label;
+            return label.split(' ');
+        }
+
+        // --- DASHBOARD CHARTS ---
+        function initDashboardCharts() {
+            const ctx = document.getElementById('typeDistributionChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['КСД (Сезонні)', 'НСД (Ремонтантні)'],
+                    datasets: [{
+                        data: [5, 3], // 5 KSD, 3 NSD
+                        backgroundColor: ['#E11D48', '#16A34A'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        // --- ANALYTICS CHARTS ---
+        let yieldChart, weightChart, hardnessChart;
+
+        function initAnalyticsCharts() {
+            // 1. Scatter
+            const ctxYield = document.getElementById('yieldTasteChart').getContext('2d');
+            yieldChart = new Chart(ctxYield, {
+                type: 'bubble',
+                data: { datasets: [] }, // Populated by updateCharts
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.raw.label}: ${context.raw.x}г/кущ, Brix: ${context.raw.y}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: 'Врожайність (г)' }, min: 500, max: 1600 },
+                        y: { title: { display: true, text: 'Смак (Brix)' }, min: 5, max: 10 }
+                    }
+                }
+            });
+
+            // 2. Bar (Weight)
+            const ctxWeight = document.getElementById('weightChart').getContext('2d');
+            weightChart = new Chart(ctxWeight, {
+                type: 'bar',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // 3. Bar (Hardness/Firmness)
+            const ctxHard = document.getElementById('hardnessChart').getContext('2d');
+            hardnessChart = new Chart(ctxHard, {
+                type: 'bar',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, max: 10 } },
+                    plugins: { legend: { display: false } },
+                    indexAxis: 'y' // Horizontal bar
+                }
+            });
+
+            updateCharts('all');
+        }
+
+        function updateCharts(filter) {
+            activeFilter = filter;
+            
+            // Update buttons
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active', 'bg-stone-100', 'text-stone-900');
+                btn.classList.add('text-stone-500');
+            });
+            document.getElementById(`filter-${filter}`).classList.add('active', 'bg-stone-100', 'text-stone-900');
+            document.getElementById(`filter-${filter}`).classList.remove('text-stone-500');
+
+            // Filter Data
+            const data = filter === 'all' ? varieties : varieties.filter(v => v.type === filter);
+
+            // Update Scatter
+            const scatterData = data.map(v => ({
+                x: v.yield,
+                y: v.brix,
+                r: v.type === 'nsd' ? 10 : 8,
+                label: v.name,
+                backgroundColor: v.type === 'nsd' ? '#16A34A' : '#E11D48'
+            }));
+            yieldChart.data.datasets = [{
+                label: 'Сорти',
+                data: scatterData,
+                backgroundColor: scatterData.map(d => d.backgroundColor)
+            }];
+            yieldChart.update();
+
+            // Update Weight
+            weightChart.data.labels = data.map(v => v.name);
+            weightChart.data.datasets = [{
+                label: 'Вага (г)',
+                data: data.map(v => v.weight),
+                backgroundColor: data.map(v => v.type === 'nsd' ? '#86EFAC' : '#FECDD3'),
+                borderColor: data.map(v => v.type === 'nsd' ? '#16A34A' : '#E11D48'),
+                borderWidth: 1
+            }];
+            weightChart.update();
+
+            // Update Hardness
+            hardnessChart.data.labels = data.map(v => v.name);
+            hardnessChart.data.datasets = [{
+                label: 'Твердість (1-10)',
+                data: data.map(v => v.firmness),
+                backgroundColor: '#94A3B8'
+            }];
+            hardnessChart.update();
+        }
+
+        // --- PLANNER LOGIC ---
+        function initPlanner() {
+            const toggleContainer = document.getElementById('variety-toggles');
+            toggleContainer.innerHTML = '';
+            
+            varieties.forEach(v => {
+                const isSelected = plannerSelection.includes(v.id);
+                const div = document.createElement('div');
+                div.className = `flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all ${isSelected ? 'border-rose-500 bg-rose-50' : 'border-stone-200 hover:border-rose-300'}`;
+                div.onclick = () => toggleVariety(v.id);
+                
+                div.innerHTML = `
+                    <div class="flex items-center">
+                        <div class="w-4 h-4 rounded border ${isSelected ? 'bg-rose-600 border-rose-600' : 'border-stone-300'} flex items-center justify-center mr-3">
+                            ${isSelected ? '<span class="text-white text-xs">✓</span>' : ''}
+                        </div>
+                        <span class="font-medium text-stone-700">${v.name}</span>
+                    </div>
+                    <span class="text-xs text-stone-500">${v.seasonDesc}</span>
+                `;
+                toggleContainer.appendChild(div);
+            });
+
+            renderTimeline();
+        }
+
+        function toggleVariety(id) {
+            if (plannerSelection.includes(id)) {
+                plannerSelection = plannerSelection.filter(i => i !== id);
+            } else {
+                plannerSelection.push(id);
+            }
+            initPlanner(); // Re-render toggles
+            renderTimeline(); // Re-render timeline
+        }
+
+        function resetPlanner() {
+            plannerSelection = [];
+            initPlanner();
+            renderTimeline();
+        }
+
+        function renderTimeline() {
+            const container = document.getElementById('timeline-container');
+            container.innerHTML = '';
+
+            if (plannerSelection.length === 0) {
+                container.innerHTML = '<div class="text-center text-stone-400 italic mt-20">Оберіть сорти зліва, щоб побачити графік</div>';
+                return;
+            }
+
+            // Simple scale: 180 days (May to Oct) mapped to 100% width
+            const totalDays = 180; 
+            
+            plannerSelection.forEach(id => {
+                const v = varieties.find(item => item.id === id);
+                if (!v) return;
+
+                const startPct = (v.seasonStart / totalDays) * 100;
+                let widthPct = ((v.seasonEnd - v.seasonStart) / totalDays) * 100;
+                
+                // Cap at 100%
+                if (startPct + widthPct > 100) widthPct = 100 - startPct;
+
+                const row = document.createElement('div');
+                row.className = 'relative h-10 w-full bg-stone-50 rounded-lg mb-2 overflow-hidden';
+                
+                // Label
+                const label = document.createElement('div');
+                label.className = 'absolute left-2 top-0 bottom-0 flex items-center text-xs font-bold z-10 text-stone-700';
+                label.innerText = v.name;
+                
+                // Bar
+                const bar = document.createElement('div');
+                bar.className = 'absolute top-2 bottom-2 rounded-md shadow-sm transition-all duration-500';
+                bar.style.left = `${startPct}%`;
+                bar.style.width = `${widthPct}%`;
+                bar.style.backgroundColor = v.type === 'nsd' ? '#16A34A' : '#E11D48'; // Green or Red
+                bar.style.opacity = '0.8';
+
+                // Tooltip simulation
+                bar.title = `${v.name} (${v.seasonDesc})`;
+
+                row.appendChild(label);
+                row.appendChild(bar);
+                container.appendChild(row);
+            });
+        }
+
+        // --- CATALOG LOGIC ---
+        let modalChartInstance = null;
+
+        function initCatalog() {
+            const grid = document.getElementById('catalog-grid');
+            varieties.forEach(v => {
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden hover:shadow-lg transition-all cursor-pointer group';
+                card.onclick = () => openModal(v);
+                
+                card.innerHTML = `
+                    <div class="h-2 bg-[${v.color}]"></div>
+                    <div class="p-5">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-lg text-stone-800 group-hover:text-rose-700 transition-colors">${v.name}</h3>
+                            <span class="text-[10px] uppercase font-bold px-2 py-1 bg-stone-100 rounded text-stone-500">${v.type.toUpperCase()}</span>
+                        </div>
+                        <p class="text-sm text-stone-500 line-clamp-2 h-10 mb-4">${v.desc}</p>
+                        <div class="flex justify-between text-xs font-medium text-stone-400 border-t border-stone-100 pt-3">
+                            <span>${v.weight}г</span>
+                            <span>Brix ${v.brix}</span>
+                        </div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function openModal(v) {
+            document.getElementById('modal-title').innerText = v.name;
+            document.getElementById('modal-subtitle').innerText = v.seasonDesc;
+            document.getElementById('modal-desc').innerText = v.desc;
+            document.getElementById('modal-origin').innerText = v.origin;
+            document.getElementById('modal-weight').innerText = `${v.weight} г`;
+            document.getElementById('modal-yield').innerText = `${v.yield} г/кущ`;
+            
+            document.getElementById('detail-view').classList.remove('hidden');
+
+            // Render Radar Chart
+            const ctx = document.getElementById('modalChart').getContext('2d');
+            if (modalChartInstance) modalChartInstance.destroy();
+            
+            modalChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Солодкість', 'Твердість', 'Стійкість', 'Врожай', 'Розмір'],
+                    datasets: [{
+                        label: v.name,
+                        data: [v.brix, v.firmness, v.resistance, (v.yield/1500)*10, (v.weight/40)*10],
+                        backgroundColor: 'rgba(225, 29, 72, 0.2)',
+                        borderColor: '#E11D48',
+                        pointBackgroundColor: '#E11D48'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            suggestedMin: 0,
+                            suggestedMax: 10,
+                            ticks: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('detail-view').classList.add('hidden');
+        }
+
+        // --- INITIALIZATION ---
+        window.onload = function() {
+            initDashboardCharts();
+            initAnalyticsCharts();
+            initPlanner();
+            initCatalog();
+        };
+
+    </script>
+</body>
+</html>
